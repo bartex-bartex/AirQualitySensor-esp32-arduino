@@ -10,10 +10,10 @@ private:
     const char* ap_ssid = "ESP32-AP";
     const char* ap_pass = "12345678";
     void getWiFiCredentials();
-    bool connectToWiFi(char* ssid, char* pass);
 public:
     WifiManager();
-    bool establishWiFiConnection();
+    bool connectToWiFi(char* ssid, char* pass);
+    bool connectToWiFi(ConfigManager& configManager, int maxUniqueCredentials);
 };
 
 #endif // WifiManager_H

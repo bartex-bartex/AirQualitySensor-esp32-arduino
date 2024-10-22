@@ -6,19 +6,32 @@
 #include "ConfigManager.h"
 #include "ArduinoJson.h"
 
+const int MAX_UDP_PACKET_SIZE = 512;
+
+struct UdpPacket {
+  IPAddress senderIp;
+  uint16_t senderPort;
+  char content[MAX_UDP_PACKET_SIZE];
+
+  UdpPacket() {
+    memset(content, 0, sizeof(content));  // Zero-initialize the content array
+  }
+};
+
 class UDPMessengerService {
   private:
-    static const int MAX_PACKET_SIZE = 512;
     ConfigManager config = ConfigManager::getInstance();
     WiFiUDP udp;
-
-    void processMessage(IPAddress& senderIp, uint16_t senderPort, char *message);
-    bool setWiFi(JsonObject &params);
-    void sendPacket(IPAddress& ip, uint16_t port, const char* content);
+    uint16_t senderPort;
+    IPAddress senderIp;
     
   public:
     UDPMessengerService(uint16_t port);
-    void listen();
+
+    bool readPacket(UdpPacket &packet);
+    void sendPacket(UdpPacket &packet);
+    
 };
+
 
 #endif /* UDPMESSENGERSERVICE_H */

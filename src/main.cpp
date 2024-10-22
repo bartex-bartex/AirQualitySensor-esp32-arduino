@@ -23,8 +23,9 @@ void setup() {
 
     // ConfigManager& configManager = ConfigManager::getInstance();
     WifiManager wifiManager = WifiManager();
+    ConfigManager& configManager = ConfigManager::getInstance();
 
-    wifiManager.establishWiFiConnection();
+    wifiManager.connectToWiFi(configManager, 3);
 
     ESP_LOGI("LED", "Launching LED");
     pinMode(GPIO_LED, OUTPUT);

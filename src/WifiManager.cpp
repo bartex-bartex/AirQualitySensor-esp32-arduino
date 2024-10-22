@@ -5,19 +5,50 @@
 #include "WifiManager.h"
 #include "UDPMessengerService.h"
 #include <esp_log.h>
+#include "CommandProcessor.h"
 
 WifiManager::WifiManager() {
 
 }
 
-// Loop:
-// load config 
-// if config doesn't exist, getWiFiCredentials
+bool WifiManager::connectToWiFi(char* ssid, char* pass) {
+    bool success = false;
 
-// Loop:
-// try to connect to WiFi
-// if failed, getWiFiCredentials
-bool WifiManager::establishWiFiConnection() {
+    ESP_LOGI("WIFI", "Connecting to WiFi with SSID: %s", ssid);
+    Serial.printf("Connecting to: %s\n", ssid);
+
+    //WiFi.mode(WIFI_STA); // this stops AP
+
+    // delete old config
+    WiFi.disconnect(true);
+
+    WiFi.begin(ssid, pass);
+
+    
+    // try to connect to WiFi using saved credentials
+    int time = 5;
+    while (time--){
+        if (WiFi.status() == WL_CONNECTED){
+            success = true;
+            ESP_LOGI("WIFI", "Successfully connected to SSID: %s", ssid);
+            break;
+        }
+
+        delay(1000);
+        ESP_LOGD("WIFI", "Attempt %d, still trying to connect...", 5 - time);
+    }
+
+    if (success){
+        ESP_LOGI("WIFI", "Connected to WiFi SSID: %s", ssid);
+    } else {
+        ESP_LOGE("WIFI", "Failed to connect to WiFi SSID: %s", ssid);
+        WiFi.disconnect(true); // stop trying to connect
+    }
+
+    return success;
+}
+
+bool WifiManager::connectToWiFi(ConfigManager& configManager, int maxUniqueCredentials) {
     bool success = false;
 
     char ssid[32] = {0};
@@ -41,49 +72,11 @@ bool WifiManager::establishWiFiConnection() {
         if (!success){
             getWiFiCredentials();
         }
-    } while(!success);
+    } while(!success && maxUniqueCredentials--);
 
     return success;
 }
 
-bool WifiManager::connectToWiFi(char* ssid, char* pass) {
-    bool success = false;
-
-    ESP_LOGI("WIFI", "Connecting to WiFi with SSID: %s", ssid);
-    Serial.printf("Connecting to: %s\n", ssid);
-
-    WiFi.mode(WIFI_STA); // this stops AP
-    // [ 26919][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 11 - AP_STOP
-    // [ 26926][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 2 - STA_START
-    if (WiFi.status() == WL_CONNECTED){
-        ESP_LOGI("WIFI", "Disconnecting from previous WiFi");
-        WiFi.disconnect(true);
-    }
-    WiFi.begin(ssid, pass);
-
-    
-    // try to connect to WiFi using saved credentials
-    int time = 5;
-    while (time--){
-        if (WiFi.status() == WL_CONNECTED){
-            success = true;
-            ESP_LOGI("WIFI", "Successfully connected to SSID: %s", ssid);
-            break;
-        }
-
-        delay(1000);
-        ESP_LOGD("WIFI", "Attempt %d, still trying to connect...", 5 - time);
-    }
-
-    if (success){
-        ESP_LOGI("WIFI", "Connected to WiFi SSID: %s", ssid);
-    } else {
-        ESP_LOGE("WIFI", "Failed to connect to WiFi SSID: %s", ssid);
-        WiFi.disconnect(); // stop trying to connect
-    }
-
-    return success;
-}
 
 void WifiManager::getWiFiCredentials() {
 
@@ -108,15 +101,22 @@ void WifiManager::getWiFiCredentials() {
 
     ESP_LOGI("WIFI", "Waiting for UDP packet containing WiFi credentials");
 
+    UdpPacket packet;
+
     while (!configManager.isDeviceConfigured()) {
-        udpMessengerService.listen();
+
+        if (udpMessengerService.readPacket(packet)){
+            ESP_LOGI("WIFI", "Received UDP packet with content: %s", packet.content);
+
+            // writes response message in packet.content
+            CommandProcessor::processMessage(packet.content);
+
+            udpMessengerService.sendPacket(packet);
+        }
     }
 
     ESP_LOGI("WIFI", "WiFi credentials received and saved.");
 
-    // disconnect as AP, true = disable AP TODO: should changed to true
-    // [ 26871][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 11 - AP_STOP
-    // [ 26885][D][WiFiGeneric.cpp:1040] _eventCallback(): Arduino Event: 10 - AP_START
     WiFi.softAPdisconnect(true);
 
     ESP_LOGI("WIFI", "Access Point disabled.");
