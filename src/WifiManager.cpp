@@ -17,10 +17,8 @@ bool WifiManager::connectToWiFi(char* ssid, char* pass) {
     ESP_LOGI("WIFI", "Connecting to WiFi with SSID: %s", ssid);
     Serial.printf("Connecting to: %s\n", ssid);
 
-    //WiFi.mode(WIFI_STA); // this stops AP
-
-    // delete old config
-    WiFi.disconnect(true);
+    WiFi.disconnect();   // clears config, so it won't try to reconnect
+    WiFi.mode(WIFI_STA); // this stops AP - THAT IS TESTED!
 
     WiFi.begin(ssid, pass);
 
@@ -42,7 +40,7 @@ bool WifiManager::connectToWiFi(char* ssid, char* pass) {
         ESP_LOGI("WIFI", "Connected to WiFi SSID: %s", ssid);
     } else {
         ESP_LOGE("WIFI", "Failed to connect to WiFi SSID: %s", ssid);
-        WiFi.disconnect(true); // stop trying to connect
+        WiFi.disconnect(); // clears config, so it won't try to reconnect
     }
 
     return success;
@@ -78,6 +76,7 @@ bool WifiManager::connectToWiFi(ConfigManager& configManager, int maxUniqueCrede
 }
 
 
+// When I send two fast UDPs until AP is turn off, it will be put in a queue
 void WifiManager::getWiFiCredentials() {
 
     ESP_LOGI("WIFI", "Resetting WiFi configuration");
@@ -91,6 +90,7 @@ void WifiManager::getWiFiCredentials() {
     IPAddress gateway(192, 168, 1, 1);
     IPAddress subnet(255, 255, 255, 0);
     
+    WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
     WiFi.softAP(ap_ssid, ap_pass);
 
@@ -117,7 +117,9 @@ void WifiManager::getWiFiCredentials() {
 
     ESP_LOGI("WIFI", "WiFi credentials received and saved.");
 
-    WiFi.softAPdisconnect(true);
+    // false -> AP is turn off and immediatelly on (probably clear config or so)
+    // true -> AP switches state 3 times: START STOP START / STOP START STOP -> if second then occure error after first STOP 
+    WiFi.softAPdisconnect(); 
 
     ESP_LOGI("WIFI", "Access Point disabled.");
 }
