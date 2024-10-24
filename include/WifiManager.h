@@ -2,6 +2,7 @@
 #define WifiManager_H
 
 #include "ConfigManager.h"
+#include "UDPMessengerService.h"
 
 class WifiManager {
 private:
@@ -9,7 +10,7 @@ private:
     // TODO: Move below 2 to config file
     const char* ap_ssid = "ESP32-AP";
     const char* ap_pass = "12345678";
-    void getWiFiCredentials();
+    void getWiFiCredentials(UDPMessengerService& udpMessengerService);
 public:
     WifiManager();
     bool connectToWiFi(char* ssid, char* pass);

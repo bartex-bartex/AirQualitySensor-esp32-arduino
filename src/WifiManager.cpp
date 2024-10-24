@@ -3,7 +3,6 @@
 #include <WiFi.h>
 #include <WiFiAP.h>
 #include "WifiManager.h"
-#include "UDPMessengerService.h"
 #include <esp_log.h>
 #include "CommandProcessor.h"
 
@@ -18,7 +17,7 @@ bool WifiManager::connectToWiFi(char* ssid, char* pass) {
     Serial.printf("Connecting to: %s\n", ssid);
 
     WiFi.disconnect();   // clears config, so it won't try to reconnect
-    WiFi.mode(WIFI_STA); // this stops AP - THAT IS TESTED!
+    WiFi.mode(WIFI_STA); // BTW. this stops AP - THAT IS TESTED!
 
     WiFi.begin(ssid, pass);
 
@@ -54,8 +53,14 @@ bool WifiManager::connectToWiFi(ConfigManager& configManager, int maxUniqueCrede
 
     configManager.load();
 
+    // Mode must be set to WIFI_STA before opening port (default is WIFI_MODE_NULL I guess)
+    WiFi.disconnect();   // clears config, so it won't try to reconnect
+    WiFi.mode(WIFI_STA); // BTW. this stops AP - THAT IS TESTED!
+
+    UDPMessengerService udpMessengerService = UDPMessengerService(1234);
+
     while (!configManager.isDeviceConfigured()) {
-        getWiFiCredentials();
+        getWiFiCredentials(udpMessengerService);
     } 
 
     do{
@@ -68,7 +73,7 @@ bool WifiManager::connectToWiFi(ConfigManager& configManager, int maxUniqueCrede
         success = connectToWiFi(ssid, pass);
 
         if (!success){
-            getWiFiCredentials();
+            getWiFiCredentials(udpMessengerService);
         }
     } while(!success && maxUniqueCredentials--);
 
@@ -77,7 +82,7 @@ bool WifiManager::connectToWiFi(ConfigManager& configManager, int maxUniqueCrede
 
 
 // When I send two fast UDPs until AP is turn off, it will be put in a queue
-void WifiManager::getWiFiCredentials() {
+void WifiManager::getWiFiCredentials(UDPMessengerService& udpMessengerService) {
 
     ESP_LOGI("WIFI", "Resetting WiFi configuration");
     
@@ -94,10 +99,7 @@ void WifiManager::getWiFiCredentials() {
     WiFi.softAPConfig(local_IP, gateway, subnet);
     WiFi.softAP(ap_ssid, ap_pass);
 
-   ESP_LOGI("WIFI", "Access Point created with SSID: %s", ap_ssid);
-
-    // obtain and save data
-    UDPMessengerService udpMessengerService = UDPMessengerService(1234);
+    ESP_LOGI("WIFI", "Access Point created with SSID: %s", ap_ssid);
 
     ESP_LOGI("WIFI", "Waiting for UDP packet containing WiFi credentials");
 
@@ -105,6 +107,7 @@ void WifiManager::getWiFiCredentials() {
 
     while (!configManager.isDeviceConfigured()) {
 
+        // TODO: Sometimes without sending UDP packet the code moves on...
         if (udpMessengerService.readPacket(packet)){
             ESP_LOGI("WIFI", "Received UDP packet with content: %s", packet.content);
 
@@ -117,9 +120,11 @@ void WifiManager::getWiFiCredentials() {
 
     ESP_LOGI("WIFI", "WiFi credentials received and saved.");
 
-    // false -> AP is turn off and immediatelly on (probably clear config or so)
-    // true -> AP switches state 3 times: START STOP START / STOP START STOP -> if second then occure error after first STOP 
-    WiFi.softAPdisconnect(); 
+    // false -> AP switches state 2 times: STOP START (probably clear config or so)
+    // true -> AP switches state 3 times: STOP START STOP -> error occures after first STOP | in fact it really stop the AP, that is OK 
+    WiFi.softAPdisconnect(true); 
 
     ESP_LOGI("WIFI", "Access Point disabled.");
+
+    //delay(20000);
 }
